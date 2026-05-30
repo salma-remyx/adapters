@@ -717,6 +717,14 @@ class ReftConfig(AdapterConfig):
     output_reft: bool = True
     init_weights_seed: Optional[int] = None
 
+    # Energy-calibrated gating (MARI, https://arxiv.org/abs/2605.28722). When
+    # enabled, each intervention unit scales its correction per sample/position
+    # by an energy-based gate, so benign (high-energy) inputs are intervened on
+    # less and general capabilities are better preserved.
+    energy_gating: bool = False
+    gate_experts: int = 4
+    gate_temperature: float = 1.0
+
 
 @dataclass(eq=False)
 class LoReftConfig(ReftConfig):
