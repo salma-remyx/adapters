@@ -220,3 +220,31 @@ Alternatively, for the predecessor `adapter-transformers`, the Hub infrastructur
     year={2020}
 }
 ```
+
+## Orthogonal Adapter Merging — adapted from *SeqLoRA: Bilevel Orthogonal Adaptation for Continual Multi-Concept Generation*
+
+When several independently-trained LoRA adapters are merged, their low-rank
+updates compete for the same output directions, producing cross-adapter
+interference that degrades each adapter's individual behavior. Drawing on the
+core result of [SeqLoRA](https://arxiv.org/abs/2605.22743v1) — that composing
+adapters whose bases are mutually orthogonal minimizes the residual interference
+energy — this library adds a `"lora_orthogonal"` combine strategy to
+`average_adapter`:
+
+```python
+model.average_adapter(
+    "merged",
+    ["concept_a", "concept_b", "concept_c"],
+    combine_strategy="lora_orthogonal",
+)
+```
+
+Before summation, each adapter's `delta_w` is projected onto the orthogonal
+complement of the subspace already claimed by the preceding adapters, then the
+result is re-factored into LoRA `A`/`B` factors of the target rank. We implement
+the *merge-time* consequence of the theory rather than SeqLoRA's full bilevel
+continual-training loop, which is out of scope for this inference/PEFT library.
+The interference quantity the paper bounds is exposed via
+`residual_interference_energy` in `adapters.methods.lora_orthogonal_merge`.
+
+Contributed via [Remyx Recommendation](https://engine.remyx.ai).
