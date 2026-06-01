@@ -21,6 +21,7 @@ from ..configuration import LoRAConfig, ModelAdaptersConfig
 from ..context import ForwardContext
 from ..utils import multigetattr, multisetattr
 from .adapter_layer_base import AdapterLayerBase, ComposableAdapterLayerBase
+from .lora_orthogonal_merge import orthogonal_merge_lora
 from .utils import dequantize_bnb_weight, fix_seed
 
 
@@ -663,6 +664,11 @@ class LoRALayer(AdapterLayerBase):
                 # Weight the delta_w matrices by the input weights and then use Singular Value Decomposition (SVD) to split them into A and B matrices.
                 self._average_adapter_lora_delta_w_svd(input_adapters, avg_state_dict, svd_rank)
 
+            elif combine_strategy == "lora_orthogonal":
+                # Project each adapter's update onto the orthogonal complement of the previously claimed
+                # subspaces before merging, minimizing cross-adapter interference (SeqLoRA, arXiv:2605.22743).
+                self._average_adapter_lora_orthogonal(input_adapters, avg_state_dict, svd_rank)
+
             else:
                 raise ValueError(f"The combine_strategy '{combine_strategy}' is not supported for LoRA.")
 
@@ -724,6 +730,22 @@ class LoRALayer(AdapterLayerBase):
         else:
             avg_state_dict["lora_A"] = V
             avg_state_dict["lora_B"] = U @ torch.diag(S_diag)
+
+    def _average_adapter_lora_orthogonal(self, input_adapters: Dict[str, float], avg_state_dict, svd_rank):
+        # Orthogonal-subspace merge (SeqLoRA): deflate each adapter's delta_w against the subspace already
+        # claimed by earlier adapters so composed concepts no longer interfere, then refactor into A/B.
+        names = list(input_adapters.keys())
+        deltas = [self.loras[name].delta_w for name in names]
+        weights = [input_adapters[name] for name in names]
+        rank = svd_rank if svd_rank is not None else self.loras[names[0]].r
+
+        merged_state_dict, _, _ = orthogonal_merge_lora(
+            deltas,
+            weights,
+            rank=rank,
+            fan_in_fan_out=self.fan_in_fan_out,
+        )
+        avg_state_dict.update(merged_state_dict)
 
     def _copy_hooks_from(self, module: nn.Module):
         for (

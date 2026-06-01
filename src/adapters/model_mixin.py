@@ -1712,7 +1712,8 @@ class ModelAdaptersMixin(PushAdapterToHubMixin, ABC):
             weights (Optional[List[float]], optional): The weights corresponding to each adapter module in the list.
                 If not provided, equal weights will be assigned to each adapter.
             combine_strategy (str, optional): The strategy to combine the adapter modules.
-                Available options are "linear", "lora_linear_only_negate_b", and "lora_delta_w_svd".
+                Available options are "linear", "lora_linear_only_negate_b", "lora_delta_w_svd", and
+                "lora_orthogonal" (orthogonal-subspace merge that minimizes cross-adapter interference).
                 See https://docs.adapterhub.ml/adapter_composition.html#merging-adapters
                 Defaults to "linear".
             normalize_weights (bool, optional): Whether to normalize the weights.
@@ -1731,6 +1732,7 @@ class ModelAdaptersMixin(PushAdapterToHubMixin, ABC):
             "linear",
             "lora_linear_only_negate_b",
             "lora_delta_w_svd",
+            "lora_orthogonal",
         ]
         self._pre_average_adapter_checks(
             adapter_name,
