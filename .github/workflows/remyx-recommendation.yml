@@ -13,7 +13,7 @@ jobs:
       REMYX_API_KEY: ${{ secrets.REMYX_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
-      - uses: remyxai/remyx-recommendation-action@v1.1.5
+      - uses: remyxai/outrider@v1.3.3
         with:
           interest-id: e937f6ca-4d5c-4c0d-a802-5041cc83fb15
           rate-limit-days: 0
