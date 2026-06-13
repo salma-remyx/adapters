@@ -7,6 +7,7 @@ import torch.nn as nn
 from ..configuration.adapter_config import ReftConfig
 from ..context import ForwardContext
 from .adapter_layer_base import AdapterLayerBase
+from .energy_gating import EnergyCalibratedGate
 from .modeling import Activation_Function_Class
 from .utils import fix_seed
 
@@ -25,6 +26,9 @@ class ReftUnit(nn.Module):
         dropout: float = 0.0,
         init_weights_seed: int = None,
         dtype: Optional[torch.dtype] = None,
+        energy_gating: bool = False,
+        gate_experts: int = 4,
+        gate_temperature: float = 1.0,
     ):
         super().__init__()
         self.orthogonal = orthogonal
@@ -52,12 +56,27 @@ class ReftUnit(nn.Module):
         self.non_linearity = Activation_Function_Class(non_linearity)
         self.dropout = nn.Dropout(dropout)
 
+        # Energy-calibrated gating (MARI): adaptively scale the intervention
+        # per sample/position so benign inputs are intervened on less.
+        if energy_gating:
+            self.gate = EnergyCalibratedGate(
+                in_dim,
+                num_experts=gate_experts,
+                temperature=gate_temperature,
+                dtype=dtype,
+            )
+        else:
+            self.gate = None
+
     def forward(self, x):
         source_states = self.non_linearity(self.learned_source(x))
         if self.subtract_projection:
             projected_states = self.projection(x)
             source_states = source_states - projected_states
-        adapted_output = x + torch.matmul(source_states, self.projection.weight)
+        delta = torch.matmul(source_states, self.projection.weight)
+        if self.gate is not None:
+            delta = self.gate(x).to(delta.dtype) * delta
+        adapted_output = x + delta
         adapted_output = self.dropout(adapted_output)
         return adapted_output
 
@@ -81,6 +100,9 @@ class ReftModule(nn.Module):
                     config.dropout,
                     config.init_weights_seed,
                     dtype,
+                    getattr(config, "energy_gating", False),
+                    getattr(config, "gate_experts", 4),
+                    getattr(config, "gate_temperature", 1.0),
                 )
                 for _ in range(n_units)
             ]

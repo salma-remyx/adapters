@@ -220,3 +220,29 @@ Alternatively, for the predecessor `adapter-transformers`, the Hub infrastructur
     year={2020}
 }
 ```
+
+## Energy-Calibrated Intervention Gating — adapted from "Multi-Adapter Representation Interventions via Energy Calibration"
+
+ReFT-style interventions can be made *input-adaptive* by enabling energy-calibrated
+gating, adapted from [Multi-Adapter Representation Interventions via Energy Calibration (MARI)](https://arxiv.org/abs/2605.28722).
+A fixed intervention applied uniformly to every input can degrade general
+capabilities on benign samples; MARI instead lets each intervention decide *how
+much* to fire per sample. The gate scores each hidden state with a small
+multi-expert head, folds those scores into a Helmholtz free-energy value, and
+maps the energy through a learnable sigmoid into a per-position scaling factor in
+`[0, 1]`. Low-energy ("applicable") states are intervened on at full strength
+while high-energy benign states pass through largely untouched.
+
+Enable it on any ReFT config:
+
+```python
+from adapters import LoReftConfig
+
+config = LoReftConfig(energy_gating=True, gate_experts=4, gate_temperature=1.0)
+model.add_adapter("aligned", config=config)
+```
+
+The gate is implemented in `src/adapters/methods/energy_gating.py` and wired into
+the ReFT intervention units in `src/adapters/methods/reft.py`.
+
+Contributed via [Remyx Recommendation](https://engine.remyx.ai).
